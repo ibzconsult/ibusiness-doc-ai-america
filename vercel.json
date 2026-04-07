@@ -1,11 +1,6 @@
 {
-  "regions": ["us-east-1"],
   "buildCommand": "npm run build",
   "outputDirectory": ".next",
   "installCommand": "npm install",
-  "framework": "nextjs",
-  "env": {
-    "NEXT_PUBLIC_DOMAIN": "https://ibusiness.com",
-    "HIPAA_COMPLIANCE_MODE": "true"
-  }
+  "framework": "nextjs"
 }
