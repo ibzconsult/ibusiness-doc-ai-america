@@ -1,19 +1,11 @@
 {
-  "name": "ibusiness-doc-ai",
-  "alias": "ibusiness.com",
   "regions": ["us-east-1"],
   "buildCommand": "npm run build",
   "outputDirectory": ".next",
   "installCommand": "npm install",
   "framework": "nextjs",
-  "env": [
-    {
-      "key": "NEXT_PUBLIC_DOMAIN",
-      "value": "https://ibusiness.com"
-    },
-    {
-      "key": "HIPAA_COMPLIANCE_MODE",
-      "value": "true"
-    }
-  ]
+  "env": {
+    "NEXT_PUBLIC_DOMAIN": "https://ibusiness.com",
+    "HIPAA_COMPLIANCE_MODE": "true"
+  }
 }
