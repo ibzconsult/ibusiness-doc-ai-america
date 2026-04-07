@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+
+# Disallow crawling of certain paths
+Disallow: /api/
+Disallow: /.next/
+
+# Sitemap
+Sitemap: https://ibusiness.com/sitemap.xml
+
+# Crawl delay
+Crawl-delay: 1

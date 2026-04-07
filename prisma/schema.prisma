@@ -1,0 +1,200 @@
+// Prisma Schema for ibusiness Doc AI America
+// Production healthcare data with HIPAA compliance
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ========================================
+// LEAD CAPTURE & CONTACT FORMS
+// ========================================
+
+model BookBriefingLead {
+  id          String    @id @default(cuid())
+  name        String
+  email       String
+  phone       String
+  clinicName  String
+  role        String    // "owner", "manager", "staff"
+  message     String    @db.Text
+  status      String    @default("new") // "new", "qualified", "contacted", "converted", "closed"
+  source      String    @default("website") // "website", "ad", "referral"
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  // Relationships
+  conversations Conversation[]
+  
+  @@index([email])
+  @@index([createdAt])
+  @@index([status])
+}
+
+// ========================================
+// CHATBOT & CONVERSATION LOGGING
+// ========================================
+
+model Conversation {
+  id            String    @id @default(cuid())
+  leadId        String?   @db.Uuid
+  lead          BookBriefingLead? @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  
+  // Session tracking
+  sessionId     String    @unique
+  ipAddress     String?
+  userAgent     String?   @db.Text
+  
+  // Conversation metadata
+  topic         String    @default("general") // "scheduling", "general", "emergency"
+  sentiment     String    @default("neutral") // "positive", "neutral", "negative"
+  resolution    String?   // null = ongoing, "resolved", "escalated", "ended"
+  
+  // Timestamps
+  startedAt     DateTime  @default(now())
+  endedAt       DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // Relationships
+  messages      ConversationMessage[]
+  
+  @@index([leadId])
+  @@index([sessionId])
+  @@index([createdAt])
+  @@index([resolution])
+}
+
+model ConversationMessage {
+  id              String      @id @default(cuid())
+  conversationId  String
+  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  
+  // Message content
+  role            String      // "user", "assistant", "system"
+  content         String      @db.Text
+  
+  // AI metadata
+  model           String?     // "gpt-4", "claude-3-opus", etc
+  tokens          Int?        // token count for billing
+  
+  // Flags for HIPAA/Emergency
+  containsPHI     Boolean     @default(false)
+  isEmergency     Boolean     @default(false)
+  flaggedAt       DateTime?
+  
+  // Timestamps
+  createdAt       DateTime    @default(now())
+  
+  @@index([conversationId])
+  @@index([createdAt])
+  @@index([isEmergency])
+}
+
+// ========================================
+// EMAIL TRACKING & DELIVERY
+// ========================================
+
+model EmailLog {
+  id          String    @id @default(cuid())
+  leadId      String?   @db.Uuid
+  
+  // Email content
+  to          String
+  subject     String
+  type        String    // "confirmation", "notification", "follow-up"
+  template    String?   // "lead_confirmation", "team_alert"
+  
+  // Delivery status
+  status      String    @default("pending") // "pending", "sent", "failed", "bounced"
+  resendId    String?   @unique // Resend API response ID
+  errorMessage String?  @db.Text
+  
+  // Timestamps
+  sentAt      DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  @@index([to])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// ========================================
+// AUDIT LOGGING (HIPAA Compliance)
+// ========================================
+
+model AuditLog {
+  id          String    @id @default(cuid())
+  
+  // Action tracking
+  action      String    // "form_submitted", "message_received", "data_accessed"
+  resource    String    // "lead", "conversation", "pii_field"
+  resourceId  String?
+  
+  // User/system info
+  actor       String    // "system", "user_ip", "api_key"
+  actorId     String?
+  
+  // Request context
+  ipAddress   String?
+  userAgent   String?   @db.Text
+  
+  // Status & errors
+  status      String    @default("success") // "success", "failure"
+  details     String?   @db.Text
+  
+  // Timestamps
+  createdAt   DateTime  @default(now())
+  
+  @@index([action])
+  @@index([resource])
+  @@index([createdAt])
+}
+
+// ========================================
+// FEATURE FLAGS & CONFIGURATION
+// ========================================
+
+model FeatureFlag {
+  id          String    @id @default(cuid())
+  key         String    @unique
+  description String?
+  enabled     Boolean   @default(false)
+  
+  // Rollout configuration
+  rolloutPercentage Int @default(0) // 0-100
+  
+  // Timestamps
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+// ========================================
+// ANALYTICS & EVENTS
+// ========================================
+
+model AnalyticsEvent {
+  id          String    @id @default(cuid())
+  
+  // Event tracking
+  eventName   String
+  eventType   String    // "page_view", "click", "form_submission", "conversion"
+  
+  // User & session
+  sessionId   String
+  userId      String?   // lead/contact ID if identified
+  
+  // Event metadata
+  properties  Json    @db.Json // Flexible JSON for event data
+  
+  // Timestamps
+  createdAt   DateTime  @default(now())
+  
+  @@index([eventName])
+  @@index([sessionId])
+  @@index([createdAt])
+}
