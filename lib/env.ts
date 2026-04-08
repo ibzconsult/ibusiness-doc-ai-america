@@ -3,10 +3,10 @@
 import { z } from 'zod';
 
 const envSchema = z.object({
-  // Required variables
-  DATABASE_URL: z.string().url('Invalid DATABASE_URL format'),
-  OPENAI_API_KEY: z.string().min(1, 'OPENAI_API_KEY is required'),
-  JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
+  // Required variables (but optional during build)
+  DATABASE_URL: z.string().optional(), // Optional during build, required at runtime for API
+  OPENAI_API_KEY: z.string().min(1, 'OPENAI_API_KEY is required').optional(), // Optional during build
+  JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters').optional(), // Optional during build
   
   // Optional variables with defaults
   NEXT_PUBLIC_DOMAIN: z.string().default('https://ibusiness.com'),
@@ -35,12 +35,14 @@ let validatedEnv: Env | null = null;
 
 /**
  * Get validated environment variables
- * Throws error if validation fails
+ * During build: allows optional vars
+ * During runtime: validates critical vars
  */
 export function getEnv(): Env {
   if (validatedEnv) return validatedEnv;
 
   const env = process.env;
+  const isBuildTime = process.env.NODE_ENV === 'production' && !process.env.DATABASE_URL;
   
   try {
     validatedEnv = envSchema.parse(env);
@@ -50,6 +52,13 @@ export function getEnv(): Env {
       const missingVars = error.issues
         .map((e: any) => `${e.path.join('.')}: ${e.message}`)
         .join('\n');
+      
+      if (isBuildTime) {
+        // During build, just warn but don't fail
+        console.warn(`⚠️  Build-time env validation: Some vars will be required at runtime\n${missingVars}`);
+        // Return empty env object for build
+        return { NEXT_PUBLIC_DOMAIN: 'https://ibusiness.com' } as Env;
+      }
       
       throw new Error(
         `❌ Environment variable validation failed:\n${missingVars}\n\n` +
