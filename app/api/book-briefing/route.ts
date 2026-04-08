@@ -4,7 +4,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/db';
 import { bookBriefingSchema } from '@/lib/schemas/book-briefing';
-import { sendLeadConfirmationEmails } from '@/lib/email';
 import { auditFormSubmission, getClientIp, getUserAgent } from '@/lib/audit';
 import { getEnv } from '@/lib/env';
 
@@ -49,23 +48,30 @@ export async function POST(request: NextRequest) {
     const domain = getEnv().NEXT_PUBLIC_DOMAIN;
     const bookingLink = `${domain}/book-briefing?confirmed=true&leadId=${lead.id}`;
 
-    // Send confirmation emails
-    try {
-      await sendLeadConfirmationEmails(
-        lead.id,
-        {
-          name: lead.name,
-          email: lead.email,
-          phone: lead.phone,
-          clinicName: lead.clinicName,
-        },
-        bookingLink
-      );
-
-      console.log(`✅ Confirmation emails sent for ${lead.email}`);
-    } catch (emailError) {
-      console.error('⚠️  Error sending confirmation emails:', emailError);
-      // Don't fail the request if emails fail - lead is still created
+    // Send webhook to n8n for email integration (optional)
+    // User can configure n8n workflow to handle email sending
+    const webhookUrl = process.env.N8N_WEBHOOK_URL;
+    if (webhookUrl) {
+      try {
+        await fetch(webhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            leadId: lead.id,
+            name: lead.name,
+            email: lead.email,
+            phone: lead.phone,
+            clinicName: lead.clinicName,
+            message: lead.message,
+            bookingLink,
+            eventType: 'lead_created',
+          }),
+        });
+        console.log(`✅ Webhook sent to n8n for ${lead.email}`);
+      } catch (webhookError) {
+        console.error('⚠️  Error sending webhook to n8n:', webhookError);
+        // Don't fail the request if webhook fails - lead is still created
+      }
     }
 
     // Return success response
