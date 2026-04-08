@@ -5,7 +5,6 @@ import { z } from 'zod';
 const envSchema = z.object({
   // Required variables
   DATABASE_URL: z.string().url('Invalid DATABASE_URL format'),
-  RESEND_API_KEY: z.string().min(1, 'RESEND_API_KEY is required'),
   OPENAI_API_KEY: z.string().min(1, 'OPENAI_API_KEY is required'),
   JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
   
@@ -19,6 +18,7 @@ const envSchema = z.object({
   CONVERSATION_TTL_DAYS: z.string().optional(),
   
   // Optional third-party integrations
+  RESEND_API_KEY: z.string().optional(), // Now optional - use n8n instead
   ANTHROPIC_API_KEY: z.string().optional(),
   TWILIO_ACCOUNT_SID: z.string().optional(),
   TWILIO_AUTH_TOKEN: z.string().optional(),
@@ -73,7 +73,6 @@ export function verifyHIPAACompliance(): boolean {
   
   const required = [
     'DATABASE_URL',
-    'RESEND_API_KEY',
     'OPENAI_API_KEY',
     'JWT_SECRET',
   ];
@@ -85,16 +84,21 @@ export function verifyHIPAACompliance(): boolean {
       `❌ Critical HIPAA variables missing: ${missing.join(', ')}`
     );
   }
-  
+
   console.log('✅ HIPAA compliance variables verified');
   return true;
 }
 
 /**
- * Get email configuration
+ * Get email configuration (optional - use n8n webhooks instead)
  */
 export function getEmailConfig() {
   const env = getEnv();
+  
+  if (!env.RESEND_API_KEY) {
+    console.info('ℹ️  RESEND_API_KEY not set - using n8n webhooks for email');
+    return null;
+  }
   
   return {
     apiKey: env.RESEND_API_KEY,

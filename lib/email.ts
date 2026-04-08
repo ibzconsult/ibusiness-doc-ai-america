@@ -1,10 +1,26 @@
-// lib/email.ts - Email service using Resend
+// lib/email.ts - Email service using Resend (optional)
 
 import { Resend } from 'resend';
 import { getEmailConfig } from './env';
 import { prisma } from './db';
 
-const resend = new Resend(getEmailConfig().apiKey);
+let resend: Resend | null = null;
+
+/**
+ * Get or initialize Resend client (lazy initialization)
+ */
+function getResendClient(): Resend | null {
+  if (resend) return resend;
+  
+  const emailConfig = getEmailConfig();
+  if (!emailConfig) {
+    console.info('ℹ️  Resend not configured - using n8n webhooks for email');
+    return null;
+  }
+  
+  resend = new Resend(emailConfig.apiKey);
+  return resend;
+}
 
 interface EmailOptions {
   to: string;
@@ -20,11 +36,23 @@ interface EmailOptions {
  */
 export async function sendEmail(options: EmailOptions) {
   const { to, subject, html, text, type, leadId } = options;
-  const { adminEmail } = getEmailConfig();
+  const emailConfig = getEmailConfig();
+  
+  // If Resend is not configured, just log it
+  if (!emailConfig) {
+    console.info(`ℹ️  Email to ${to} (Resend not configured - use n8n webhook)`);
+    return { success: true, id: 'n8n-webhook' };
+  }
+
+  const client = getResendClient();
+  if (!client) {
+    console.warn(`⚠️  Cannot send email to ${to} - Resend client not initialized`);
+    return { success: false, id: null };
+  }
 
   try {
     // Send email via Resend
-    const response = await resend.emails.send({
+    const response = await client.emails.send({
       from: `ibusiness <noreply@ibusiness.com>`,
       to,
       subject,
@@ -181,7 +209,13 @@ export async function sendLeadConfirmationEmails(
   leadData: { name: string; email: string; phone: string; clinicName: string },
   bookingLink: string
 ) {
-  const { adminEmail, supportEmail } = getEmailConfig();
+  const emailConfig = getEmailConfig();
+  
+  // If Resend not configured, just skip email sending
+  if (!emailConfig) {
+    console.info(`ℹ️  Email sending disabled - configure Resend or use n8n webhook`);
+    return;
+  }
 
   try {
     // Send confirmation to lead
@@ -196,7 +230,7 @@ export async function sendLeadConfirmationEmails(
     // Send alert to team
     const teamTemplate = teamAlertTemplate(leadData);
     await sendEmail({
-      to: adminEmail,
+      to: emailConfig.adminEmail,
       ...teamTemplate,
       type: 'notification',
       leadId,
